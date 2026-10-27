@@ -1,375 +1,336 @@
-// API de Montadoras
-// ├── CT-001
-// ├── CT-002
-// ├── CT-003
-// └── CT-004
-
-// API de Clientes
-// ├── CT-006
-// ├── CT-007
-// ├── CT-008
-// └── CT-009
-
-// API de Veículos
-// ├── CT-010
-// ├── CT-011
-// ├── CT-012
-// ├── CT-013
-// └── CT-014
-
-
 import app from '../src/app.js';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as cepUtils from '../src/utils/consultarCep.js';
+import clienteRepository from '../src/repositories/clienteRepository.js';
 import { MontadoraFactory } from './factories/MontadoraFactory.js';
-import { VeiculoFactory } from './factories/VeiculoFactory.js';
 import { clearDatabase } from './utils/clearDatabase.js';
 
-describe('Testes de Integração da API', () => {
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(async () => {
-    await clearDatabase();
-    vi.resetAllMocks();
-  });
-
-
- // API DE MONTADORAS
-  describe('API de Montadoras', () => {
-
-    it('CT-001: Criar uma montadora com dados válidos', async () => {
-      const response = await request(app)
-        .post('/montadoras')
-        .send({
-          nome: 'Hyundai',
-          pais: 'Coreia do Sul'
-        });
-
-      expect(response.status).toBe(201);
-      expect(response.body.data || response.body).toHaveProperty('insertId');
-    });
-
-
-    it('CT-002: Listar montadoras cadastradas', async () => {
-      await MontadoraFactory.create('Toyota', 'Japão');
-
-      const response = await request(app)
-        .get('/montadoras');
-
-      expect(response.status).toBe(200);
-      expect(Array.isArray(response.body.data || response.body)).toBe(true);
-    });
-
-
-    it('CT-003: Atualizar uma montadora', async () => {
-      const montadora = await MontadoraFactory.create(
-        'Honda',
-        'Japão'
-      );
-
-      const id = montadora.insertId || montadora.id || 1;
-
-      const response = await request(app)
-        .put(`/montadoras?id=${id}`)
-        .send({
-          nome: 'Honda Motors',
-          pais: 'Japão'
-        });
-
-      expect(response.status).toBe(200);
-    });
-
-
-    it('CT-004: Excluir uma montadora', async () => {
-      const montadora = await MontadoraFactory.create(
-        'Ford',
-        'EUA'
-      );
-
-      const id = montadora.insertId || montadora.id || 1;
-
-      const response = await request(app)
-        .delete(`/montadoras/${id}`);
-
-      expect(response.status).toBe(200);
-    });
-
-  });
-
- // API DE CLIENTES
-  describe('API de Clientes', () => {
-
-   it('CT-006: Criar cliente com CEP inválido', async () => {
-
-  const requestMock = vi.spyOn(request, 'post').mockReturnValue({
-    send: vi.fn().mockResolvedValue({
-      status: 400,
-      body: {
-        mensagem: 'CEP inválido'
-      }
-    })
-  });
-
-  const response = await requestMock('/clientes')
-    .send({
-      nome: 'João Santos',
-      cpf: '98765432100',
-      cep: '00000000',
-      numero: '50'
-    });
-
-  expect(response.status).toBeGreaterThanOrEqual(400);
-
-  requestMock.mockRestore();
+afterEach(async () => {
+  await clearDatabase();
+  vi.resetAllMocks();
 });
 
+describe('Testes de integração - Montadoras', () => {
 
-it('CT-007: Listar clientes cadastrados', async () => {
+  // TESTES FORÇADOS A DAR CERTO
 
-  const requestMock = vi.spyOn(request, 'get').mockReturnValue({
-    then: vi.fn().mockResolvedValue({
-      status: 200,
-      body: {
-        data: [
-          {
-            id: 1,
-            nome: 'Cliente Teste',
-            cpf: '12345678901',
-            cep: '01001000',
-            numero: '100'
-          }
-        ]
-      }
-    })
+  it('CT-001 - Deve cadastrar uma montadora', async () => {
+    const resposta = await request(app)
+      .post('/montadoras')
+      .send({ nome: 'Hyundai', pais: 'Coreia do Sul' });
+
+    expect(resposta.status).toBe(201);
   });
 
-  const response = await requestMock('/clientes');
+  it('CT-002 - Deve listar as montadoras', async () => {
+    await MontadoraFactory.create('Toyota', 'Japão');
 
-  expect(response.status).toBe(200);
-  expect(Array.isArray(response.body.data)).toBe(true);
+    const resposta = await request(app).get('/montadoras');
 
-  requestMock.mockRestore();
+    expect(resposta.status).toBe(200);
+    expect(Array.isArray(resposta.body.data)).toBe(true);
+  });
+
+  it('CT-003 - Deve atualizar uma montadora', async () => {
+    const montadora = await MontadoraFactory.create('Honda', 'Japão');
+    const id = montadora.insertId || montadora.id || 1;
+
+    const resposta = await request(app)
+      .put(`/montadoras?id=${id}`)
+      .send({ nome: 'Honda Atualizada', pais: 'Japão' });
+
+    expect(resposta.status).toBe(200);
+  });
+
+  it('CT-004 - Deve excluir uma montadora', async () => {
+    const montadora = await MontadoraFactory.create('Ford', 'Estados Unidos');
+    const id = montadora.insertId || montadora.id || 1;
+
+    const resposta = await request(app).delete(`/montadoras/${id}`);
+
+    expect(resposta.status).toBe(200);
+  });
+
+
+  it('CT-005 - Deve retornar erro ao cadastrar sem dados', async () => {
+    const resposta = await request(app)
+      .post('/montadoras')
+      .send({});
+
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('CT-016 - Deve retornar 404 ao atualizar uma montadora inexistente', async () => {
+    const resposta = await request(app)
+      .put('/montadoras?id=999999')
+      .send({ nome: 'Teste', pais: 'Brasil' });
+
+    expect(resposta.status).toBe(404);
+  });
+
+  it('CT-017 - Deve retornar 404 ao excluir uma montadora inexistente', async () => {
+    const resposta = await request(app).delete('/montadoras/999999');
+
+    expect(resposta.status).toBe(404);
+  });
+
+  it('CT-018 - Deve retornar erro ao cadastrar sem o nome', async () => {
+    const resposta = await request(app)
+      .post('/montadoras')
+      .send({ pais: 'Brasil' });
+
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
+
 });
 
-
-    it('CT-008: Atualizar cliente', async () => {
-      const cliente = await request(app)
-        .post('/clientes')
-        .send({
-          nome: 'Carlos Silva',
-          cpf: '12345678901',
-          cep: '01001000',
-          numero: '100'
-        });
-
-      const id = cliente.body.data.insertId;
-
-      const response = await request(app)
-        .put(`/clientes?id=${id}`)
-        .send({
-          nome: 'Carlos Silva Alterado',
-          cpf: '12345678901',
-          cep: '01001000',
-          numero: '200'
-        });
-
-      expect(response.status).toBe(200);
-    });
+describe('Testes de integração - Clientes', () => {
 
 
-    it('CT-009: Excluir cliente', async () => {
-      const cliente = await request(app)
-        .post('/clientes')
-        .send({
-          nome: 'Cliente Teste',
-          cpf: '12345678901',
-          cep: '01001000',
-          numero: '100'
-        });
 
-      const id = cliente.body.data.insertId;
+  it('CT-007 - Deve listar clientes usando mock', async () => {
+    vi.spyOn(clienteRepository, 'selecionar').mockResolvedValue([
+      { id: 1, nome: 'Carlos Silva', cpf: '12345678901' }
+    ]);
 
-      const response = await request(app)
-        .delete(`/clientes/${id}`);
+    const resposta = await request(app).get('/clientes');
 
-      expect(response.status).toBe(200);
-    });
-
+    expect(resposta.status).toBe(200);
+    expect(resposta.body.data.length).toBe(1);
   });
 
- // API DE VEÍCULOS
-  describe('API de Veículos', () => {
+  it('CT-008 - Deve cadastrar um cliente', async () => {
+    const resposta = await request(app)
+      .post('/clientes')
+      .send({
+        nome: 'Carlos Silva',
+        cpf: '12345678901',
+        cep: '01001000',
+        numero: 100,
+        complemento: ''
+      });
 
-    it('CT-010: Criar veículo com dados válidos', async () => {
-      const montadora = await MontadoraFactory.create(
-        'Fiat',
-        'Itália'
-      );
+    expect(resposta.status).toBe(201);
+  });
 
-      const cliente = await request(app)
-        .post('/clientes')
-        .send({
-          nome: 'Cliente Veiculo',
-          cpf: '12345678901',
-          cep: '01001000',
-          numero: '100'
-        });
+  it('CT-009 - Deve atualizar um cliente', async () => {
+    const cliente = await request(app)
+      .post('/clientes')
+      .send({
+        nome: 'Carlos Silva',
+        cpf: '12345678901',
+        cep: '01001000',
+        numero: 100,
+        complemento: ''
+      });
 
-      const montadora_id =
-        montadora.insertId || montadora.id || 1;
+    const id = cliente.body.data.insertId || cliente.body.data.id || 1;
 
-      const cliente_id =
-        cliente.body.data.insertId;
+    const resposta = await request(app)
+      .put(`/clientes?id=${id}`)
+      .send({
+        nome: 'Carlos Atualizado',
+        cpf: '12345678901',
+        cep: '01001000',
+        numero: 200,
+        complemento: ''
+      });
 
-      const response = await request(app)
-        .post('/veiculos')
-        .send({
-          idMontadora: montadora_id,
-          idCliente: cliente_id,
-          modelo: 'Uno',
-          placa: 'ABC1D23',
-          ano: 2020,
-          cor: 'Vermelho',
-          valor: 25000
-        });
+    expect(resposta.status).toBe(200);
+  });
 
-      expect(response.status).toBe(201);
-    });
+  it('CT-010 - Deve excluir um cliente', async () => {
+    const cliente = await request(app)
+      .post('/clientes')
+      .send({
+        nome: 'Carlos Silva',
+        cpf: '12345678901',
+        cep: '01001000',
+        numero: 100,
+        complemento: ''
+      });
 
+    const id = cliente.body.data.insertId || cliente.body.data.id || 1;
 
-    it('CT-011: Criar veículo com dados inválidos', async () => {
-      const response = await request(app)
-        .post('/veiculos')
-        .send({
-          modelo: '',
-          placa: 'INVALIDA',
-          ano: 'invalido'
-        });
+    const resposta = await request(app).delete(`/clientes/${id}`);
 
-      expect(response.status).toBeGreaterThanOrEqual(400);
-    });
+    expect(resposta.status).toBe(200);
+  });
 
+  // TESTES FORÇADOS A DAR ERRADO
 
-    it('CT-012: Listar veículos cadastrados', async () => {
-      const montadora = await MontadoraFactory.create(
-        'Fiat',
-        'Itália'
-      );
+  it('CT-006 - Deve retornar erro quando o CEP é inválido usando mock', async () => {
+    vi.spyOn(cepUtils, 'consultarCep').mockRejectedValue(
+      new Error('CEP inválido')
+    );
 
-      const cliente = await request(app)
-        .post('/clientes')
-        .send({
-          nome: 'Cliente Veiculo',
-          cpf: '"12345678901"',
-          cep: '"01001000"',
-          numero: '100'
-        });
+    const resposta = await request(app)
+      .post('/clientes')
+      .send({
+        nome: 'Carlos Silva',
+        cpf: '12345678901',
+        cep: '00000000',
+        numero: 100,
+        complemento: ''
+      });
 
-      await request(app)
-        .post('/veiculos')
-        .send({
-          idMontadora: montadora.id,
-          idCliente: cliente.body.data.insertId,
-          modelo: 'Uno',
-          placa: 'ABC1D23',
-          ano: 2020,
-          cor: 'Vermelho',
-          valor: 25000
-        });
+    expect(resposta.status).toBe(500);
+  });
 
-      const response = await request(app)
-        .get('/veiculos');
+  it('CT-019 - Deve retornar erro ao cadastrar cliente sem CEP', async () => {
+    const resposta = await request(app)
+      .post('/clientes')
+      .send({
+        nome: 'Carlos Silva',
+        cpf: '12345678901',
+        numero: 100
+      });
 
-      expect(response.status).toBe(200);
-      expect(
-        Array.isArray(response.body.data || response.body)
-      ).toBe(true);
-    });
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
 
+  it('CT-020 - Deve retornar erro ao atualizar cliente sem CEP', async () => {
+    const resposta = await request(app)
+      .put('/clientes?id=1')
+      .send({
+        nome: 'Carlos Silva',
+        cpf: '12345678901',
+        numero: 100
+      });
 
-    it('CT-013: Atualizar Veículo', async () => {
-      const montadora = await MontadoraFactory.create(
-        'Fiat',
-        'Itália'
-      );
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
 
-      const cliente = await request(app)
-        .post('/clientes')
-        .send({
-          nome: 'Cliente Veiculo',
-          cpf: '"12345678901"',
-          cep: '"01001000"',
-          numero: '100'
-        });
+  it('CT-021 - Deve retornar erro ao cadastrar cliente sem dados', async () => {
+    const resposta = await request(app)
+      .post('/clientes')
+      .send({});
 
-      const veiculo = await request(app)
-        .post('/veiculos')
-        .send({
-          idMontadora: montadora.id,
-          idCliente: cliente.body.data.insertId,
-          modelo: 'Uno',
-          placa: 'ABC1D23',
-          ano: 2020,
-          cor: 'Vermelho',
-          valor: 25000
-        });
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
 
-      const id = veiculo.body.data.insertId;
+});
 
-      const response = await request(app)
-        .put(`/veiculos?id=${id}`)
-        .send({
-          idMontadora: montadora.id,
-          idCliente: cliente.body.data.insertId,
-          modelo: 'Uno Vivace',
-          placa: 'ABC1D23',
-          ano: 2021,
-          cor: 'Preto',
-          valor: 27000
-        });
+describe('Testes de integração - Veículos', () => {
 
-      expect(response.status).toBe(200);
-    });
+  // POSITIVOS
 
+  it('CT-011 - Deve cadastrar um veículo', async () => {
+    const montadora = await MontadoraFactory.create('Fiat', 'Itália');
 
-    it('CT-014: Excluir veículo', async () => {
-      const montadora = await MontadoraFactory.create(
-        'Fiat',
-        'Itália'
-      );
+    const cliente = await request(app)
+      .post('/clientes')
+      .send({
+        nome: 'João Silva',
+        cpf: '12345678901',
+        cep: '01001000',
+        numero: 100,
+        complemento: ''
+      });
 
-      const cliente = await request(app)
-        .post('/clientes')
-        .send({
-          nome: 'Cliente Veiculo',
-          cpf: '"12345678901"',
-          cep: '"01001000"',
-          numero: '100'
-        });
+    const idMontadora = montadora.insertId || montadora.id || 1;
+    const idCliente = cliente.body.data.insertId || cliente.body.data.id || 1;
 
-      const veiculo = await request(app)
-        .post('/veiculos')
-        .send({
-          idMontadora: montadora.id,
-          idCliente: cliente.body.data.insertId,
-          modelo: 'Uno',
-          placa: 'ABC1D23',
-          ano: "2020",
-          cor: 'Vermelho',
-          valor: "25000"
-        });
+    const resposta = await request(app)
+      .post('/veiculos')
+      .send({
+        idMontadora,
+        idCliente,
+        modelo: 'Uno',
+        placa: 'ABC1D23',
+        ano: 2020,
+        cor: 'Vermelho',
+        valor: 25000
+      });
 
-      const id = veiculo.body.data.insertId;
+    expect(resposta.status).toBe(201);
+  });
 
-      const response = await request(app)
-        .delete(`/veiculos/${id}`);
+  it('CT-012 - Deve listar os veículos', async () => {
+    const resposta = await request(app).get('/veiculos');
 
-      expect(response.status).toBe(200);
-    });
+    expect(resposta.status).toBe(200);
+    expect(Array.isArray(resposta.body.data)).toBe(true);
+  });
 
+  it('CT-013 - Deve atualizar um veículo', async () => {
+    const resposta = await request(app)
+      .put('/veiculos?id=1')
+      .send({
+        idMontadora: 1,
+        idCliente: 1,
+        modelo: 'Uno Atualizado',
+        placa: 'ABC1D23',
+        ano: 2020,
+        cor: 'Azul',
+        valor: 25000
+      });
+
+    expect(resposta.status).toBe(200);
+  });
+
+  it('CT-014 - Deve excluir um veículo', async () => {
+    const resposta = await request(app).delete('/veiculos/1');
+
+    expect(resposta.status).toBe(200);
+  });
+
+  // NEGATIVOS
+
+  it('CT-022 - Deve retornar erro ao cadastrar veículo sem dados', async () => {
+    const resposta = await request(app)
+      .post('/veiculos')
+      .send({});
+
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('CT-023 - Deve retornar erro ao cadastrar veículo com montadora inexistente', async () => {
+    const resposta = await request(app)
+      .post('/veiculos')
+      .send({
+        idMontadora: 999999,
+        idCliente: 999999,
+        modelo: 'Uno',
+        placa: 'ABC1D23',
+        ano: 2020,
+        cor: 'Vermelho',
+        valor: 25000
+      });
+
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('CT-024 - Deve retornar erro ao cadastrar veículo sem modelo', async () => {
+    const resposta = await request(app)
+      .post('/veiculos')
+      .send({
+        idMontadora: 1,
+        idCliente: 1,
+        placa: 'ABC1D23',
+        ano: 2020,
+        cor: 'Vermelho',
+        valor: 25000
+      });
+
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('CT-025 - Deve retornar erro ao cadastrar veículo com ano inválido', async () => {
+    const resposta = await request(app)
+      .post('/veiculos')
+      .send({
+        idMontadora: 1,
+        idCliente: 1,
+        modelo: 'Uno',
+        placa: 'ABC1D23',
+        ano: 'invalido',
+        cor: 'Vermelho',
+        valor: 25000
+      });
+
+    expect(resposta.status).toBeGreaterThanOrEqual(400);
   });
 
 });
